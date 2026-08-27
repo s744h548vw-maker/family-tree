@@ -203,9 +203,12 @@ function lateralLabel(a,b){
   const ord=degree===1?'1st':degree===2?'2nd':degree===3?'3rd':degree+'th';
   return ord+' Cousin'+(removed?', '+removed+'x Removed':'');
 }
-function relationLabel(targetId){
+function relationLabel(targetId,seen){
   const you=selfId(); if(!you) return '';
   if(targetId===you) return 'You';
+  seen=seen||new Set();
+  if(seen.has(targetId)) return '';
+  seen.add(targetId);
   const mine=ancestorsMap(you), theirs=ancestorsMap(targetId);
   if(mine.has(targetId)) return ordinalUp(mine.get(targetId));
   if(theirs.has(you)) return ordinalDown(theirs.get(you));
@@ -215,8 +218,8 @@ function relationLabel(targetId){
   if(best) return lateralLabel(best.a,best.b);
   const un=unionOf(targetId);
   if(un){ const spouseId=un.partners.find(x=>x!==targetId);
-    if(spouseId){ const r=relationLabel(spouseId); if(r) return 'Spouse of '+r; } }
-  return '';
+    if(spouseId){ const r=relationLabel(spouseId,seen); if(r) return 'Spouse of '+r; } }
+  return 'Not yet linked to your line';
 }
 
 function seed(){
