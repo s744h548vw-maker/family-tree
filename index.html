@@ -266,9 +266,14 @@ function seed(){
   p('p_sylvia','Sylvia Scribner',1,{ethnicity:'White — English Puritan',birth:'1800',death:'?',place:'NY \u2192 OH',note:'Early colonial Scribners'});
   u('u_hyde',['p_hyde','p_sylvia'],['p_orrin']);
 
-  p('p_orrin','Orrin Orlando Perrin',2,{ethnicity:'White — French-Yankee',birth:'1841',death:'1905',place:'Medina, OH',note:'Union soldier and farmer'});
-  p('p_virginia','Virginia Harris',2,{ethnicity:'Black / African American — West African coastal',birth:'c. 1850',death:'?',place:'Ohio',note:'Matriarch'});
+  p('p_orrin','Orrin Orlando Perrin',2,{ethnicity:'White — French-Yankee',birth:'1841',death:'1905',place:'Medina, OH',note:'Union soldier and farmer. NOT Shirley Cox\u2019s father \u2014 died 1905, 23 yrs before her 1928 birth. This branch\u2019s link to the rest of the tree is currently unconfirmed'});
+  p('p_virginia','Virginia Harris',2,{ethnicity:'Black / African American — West African coastal',birth:'c. 1850',death:'?',place:'Ohio',note:'Matriarch. Same name as Shirley Cox\u2019s mother below \u2014 confirmed to be a different, unrelated person by the 80-year date gap'});
   u('u_orrin',['p_orrin','p_virginia'],[]);
+
+  p('p_orrin2','Orrin Perrin',2,{place:'Ohio (per obituary)',note:'Shirley Cox\u2019s actual father, per her 2013 obituary (newcomerakron.com). Dates unconfirmed \u2014 do not confuse with the 1841\u20131905 Orrin Orlando Perrin above'});
+  p('p_virginia2','Virginia Harris',2,{place:'Ohio (per obituary)',note:'Shirley Cox\u2019s actual mother, per her 2013 obituary. Dates unconfirmed'});
+  p('p_deatta','Deatta Bosley',3,{place:'Ashland, OH',note:'Shirley Cox\u2019s sister per her obituary; listed as a likely sibling \u2014 shared parentage not explicitly confirmed in the source'});
+  u('u_orrin2',['p_orrin2','p_virginia2'],['p_shirley','p_deatta']);
 
   p('p_sam','Sam J. Hood',3,{ethnicity:'Black / African American — West African',birth:'c. 1900',death:'pre-2003',place:'GA/AL \u2192 Akron',note:'Southern migrant'});
   p('p_shirley','Shirley Rebecca (Hood) Cox',3,{ethnicity:'Multi-Racial African American',birth:'1928',death:'2013',place:'Akron, OH',note:'First woman to drive for Akron Yellow Cab'});
@@ -283,7 +288,7 @@ function seed(){
   p('p_heard','Mr. Heard',4,{ethnicity:'Black / African American',place:'Akron, OH (Southern Migration roots)',note:'Heavy industrial trade worker; high-heat mold environments in Summit County manufacturing. First name not yet known'});
   u('u_yvonne',['p_yvonne','p_heard'],['p_maria']);
 
-  p('p_maria','Maria Janel Heard',5,{ethnicity:'Black / African American',place:'Akron, OH',note:'Maternal line carrier'});
+  p('p_maria','Marina Janelle Heard',5,{ethnicity:'Black / African American',birth:'Feb 23',place:'Akron, OH',note:'Maternal line carrier'});
   p('p_mrii','Michael Rodriguez II',5,{ethnicity:'Multi-Racial African American & Afro-Latino',place:'Akron, OH',note:'Paternal lines: Rodriguez (Puerto Rico) and Addison'});
   u('u_parents',['p_maria','p_mrii'],['p_you']);
 
