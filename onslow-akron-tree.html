@@ -1,0 +1,680 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;600;700&family=Karla:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0D1512;
+    --ink2:#15201C;
+    --ink3:#1D2A25;
+    --bone:#E9E1CF;
+    --bone-dim:#9CA79E;
+    --brass:#C9A227;
+    --oxblood:#9A4235;
+    --rule:#3E5148;
+    --card-w:196px;
+    --card-h:104px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--bone);
+    font-family:'Karla',system-ui,sans-serif}
+  body{
+    background-image:radial-gradient(circle at 20% 0%,#1a2621 0%,var(--ink) 55%);
+  }
+
+  /* ---------- masthead ---------- */
+  #bar{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;
+    padding:10px 12px;background:linear-gradient(180deg,rgba(13,21,18,.97),rgba(13,21,18,.82) 70%,transparent);
+    backdrop-filter:blur(6px)}
+  #title{font-family:'Zilla Slab',serif;font-weight:700;font-size:15px;letter-spacing:.02em;line-height:1;flex:1;min-width:0}
+  #title small{display:block;font-family:'JetBrains Mono',monospace;font-weight:400;font-size:9.5px;
+    letter-spacing:.14em;color:var(--brass);margin-top:4px;text-transform:uppercase;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--bone);
+    background:var(--ink3);border:1px solid var(--rule);border-radius:2px;padding:7px 9px;cursor:pointer}
+  .btn:active{background:var(--rule)}
+  .btn:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+  .btn.brass{border-color:var(--brass);color:var(--brass)}
+
+  /* ---------- canvas ---------- */
+  #viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+  #viewport.drag{cursor:grabbing}
+  #stage{position:absolute;top:0;left:0;transform-origin:0 0}
+  #wires{position:absolute;top:0;left:0;overflow:visible;pointer-events:none}
+
+  .rowlab{position:absolute;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;
+    color:#54685d;white-space:nowrap;pointer-events:none}
+  .rowlab b{color:var(--brass);font-weight:600}
+
+  /* ---------- record card ---------- */
+  .card{position:absolute;width:var(--card-w);height:var(--card-h);background:var(--ink2);
+    border:1px solid var(--rule);border-left:0;border-radius:2px;display:flex;overflow:hidden;
+    cursor:pointer;transition:border-color .12s,background .12s}
+  .card:hover{background:var(--ink3);border-color:#5b7268}
+  .card .tab{width:22px;flex:none;background:#22302a;border-right:1px solid var(--rule);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--brass);
+    writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.08em}
+  .card .body{padding:9px 11px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px}
+  .card .nm{font-family:'Zilla Slab',serif;font-size:14.5px;font-weight:600;line-height:1.15;
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .card .dt{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--brass);letter-spacing:.03em}
+  .card .nt{font-size:10.5px;line-height:1.25;color:var(--bone-dim);
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .card.self{border-color:var(--brass);background:#1e2a1f;box-shadow:0 0 0 1px var(--brass)}
+  .card.self .tab{background:var(--brass);color:#14201a}
+  .card.ghost{border-style:dashed;background:transparent}
+  .card.ghost .nm{color:var(--bone-dim);font-style:italic}
+  .card.ghost .tab{color:var(--rule)}
+  .card.hit{border-color:var(--oxblood);box-shadow:0 0 0 2px var(--oxblood)}
+  .card.sel{border-color:var(--bone);box-shadow:0 0 0 2px var(--bone)}
+
+  /* ---------- sheet ---------- */
+  #scrim{position:fixed;inset:0;background:rgba(8,13,11,.6);z-index:50;display:none}
+  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--ink2);
+    border-top:1px solid var(--brass);border-radius:10px 10px 0 0;padding:14px 16px 22px;
+    max-height:82vh;overflow:auto;transform:translateY(102%);transition:transform .22s ease;
+    box-shadow:0 -20px 50px rgba(0,0,0,.5)}
+  #sheet.open{transform:none}
+  #sheet h2{font-family:'Zilla Slab',serif;font-size:18px;margin:2px 0 2px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+    color:var(--brass);text-transform:uppercase;margin-bottom:8px}
+  .grip{width:38px;height:3px;background:var(--rule);border-radius:2px;margin:0 auto 10px}
+  label{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--bone-dim);margin:11px 0 4px}
+  input[type=text],select,textarea{width:100%;background:var(--ink);border:1px solid var(--rule);
+    border-radius:2px;color:var(--bone);font-family:'Karla',sans-serif;font-size:14px;padding:9px 10px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brass)}
+  textarea{resize:vertical;min-height:56px}
+  .two{display:flex;gap:10px}.two>div{flex:1}
+  .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .acts .btn{flex:1 1 46%}
+  .danger{border-color:var(--oxblood);color:#d98a7c}
+  .chk{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--bone-dim)}
+  .chk input{accent-color:var(--brass);width:16px;height:16px}
+  .hint{font-size:12px;line-height:1.45;color:var(--bone-dim);margin:10px 0 0}
+
+  /* ---------- dock ---------- */
+  #dock{position:fixed;right:12px;bottom:14px;z-index:30;display:flex;flex-direction:column;gap:7px}
+  #dock .btn{width:42px;height:42px;padding:0;font-size:15px;font-family:'Karla',sans-serif;
+    display:flex;align-items:center;justify-content:center}
+  #find{position:fixed;left:12px;bottom:14px;z-index:30;width:min(48vw,220px)}
+  #find input{background:rgba(21,32,28,.94);border:1px solid var(--rule);border-radius:2px;
+    color:var(--bone);font-size:13px;padding:10px 11px;width:100%}
+  #toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:70;
+    background:var(--ink3);border:1px solid var(--brass);border-radius:2px;padding:8px 13px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--bone);opacity:0;
+    transition:opacity .2s;pointer-events:none;white-space:nowrap;max-width:90vw}
+  #toast.on{opacity:1}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="bar">
+  <div id="title">The Rodriguez&#8211;Perrin Tapestry<small id="stat">loading records</small></div>
+  <button class="btn" id="bFit" title="Fit tree to screen">Fit</button>
+  <button class="btn brass" id="bMenu" title="File actions">&#9776;</button>
+</div>
+
+<div id="viewport">
+  <div id="stage">
+    <svg id="wires"></svg>
+  </div>
+</div>
+
+<div id="find"><input id="q" type="text" placeholder="Find a name" autocomplete="off"></div>
+<div id="dock">
+  <button class="btn" id="bIn" aria-label="Zoom in">+</button>
+  <button class="btn" id="bOut" aria-label="Zoom out">&#8722;</button>
+  <button class="btn brass" id="bAdd" aria-label="Add a person">+&#9679;</button>
+</div>
+
+<div id="scrim"></div>
+<div id="sheet" role="dialog" aria-modal="true"><div class="grip"></div><div id="sheetBody"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ============================ model ============================ */
+const KEY='onslow-akron-tree-v5';
+const CW=196, CH=104, MG=30, SIB=36, ROWH=196, GAP=40, PAD=90;
+let state={people:{},unions:[],seq:1};
+let view={x:0,y:0,k:1};
+let sel=null, hits=new Set();
+
+const uid=p=>p+(state.seq++);
+const P=id=>state.people[id];
+const U=id=>state.unions.find(u=>u.id===id);
+const unionOf=pid=>state.unions.find(u=>u.partners.includes(pid));
+const parentUnion=pid=>state.unions.find(u=>u.children.includes(pid));
+
+function person(id,name,gen,o={}){ state.people[id]={id,name,gen,birth:'',death:'',place:'',note:'',ghost:false,self:false,...o}; }
+function union(id,partners,children){ state.unions.push({id,partners,children}); }
+
+function seed(){
+  state={people:{},unions:[],seq:1000};
+  const p=person, u=union;
+  p('p_john3','John Perrin III',-4,{birth:'1643',death:'1694',place:'Rehoboth, Plymouth Colony',note:'Frontier joiner and militiaman; served in King Philip\u2019s War'});
+  p('p_mary','Mary Hunt',-4,{birth:'1652',death:'1690',place:'Weymouth, Mass. Bay',note:'Ran the homestead. Conflict: died 1690, two years before John IV\u2019s stated birth \u2014 a generation may be missing here'});
+  u('u_john3',['p_john3','p_mary'],['p_john4']);
+
+  p('p_john4','John Perrin IV',-3,{birth:'Mar 8, 1692',death:'Feb 28, 1731',place:'Rehoboth, Bristol Co., MA',note:'Yeoman, timber millwright, livestock. Died at 38. Conflict: an earlier record gives 1668\u20131714'});
+  p('p_rachel_e','Rachel Ide (the Elder)',-3,{birth:'May 28, 1696',death:'Dec 26, 1780',place:'Rehoboth, MA',note:'Daughter of Capt. Timothy Ide & Elizabeth Cooper. Widowed 1731, held the estate together 49 years'});
+  u('u_john4',['p_john4','p_rachel_e'],['p_jesse']);
+
+  p('p_timide','Capt. Timothy Ide',-4,{place:'Rehoboth, MA',note:'Ide bedrock family; King Philip\u2019s War generation'});
+  p('p_ecooper','Elizabeth Cooper',-4,{place:'Rehoboth, MA'});
+  u('u_timide',['p_timide','p_ecooper'],['p_rachel_e']);
+
+  p('p_dide','Daniel Ide',-3,{place:'Rehoboth, MA',note:'Ide pioneer family'});
+  p('p_hcarp','Hannah Carpenter',-3,{place:'Rehoboth, MA',note:'Carpenter line'});
+  u('u_ide',['p_dide','p_hcarp'],['p_rachel']);
+
+  p('p_jesse','Jesse Perrin',-2,{birth:'Jan 24, 1726',death:'Jan 15, 1801',place:'Rehoboth \u2192 Savoy, MA',note:'Town clerk of Rehoboth 25 years (1762\u20131787); surveyor. Registered for service 1778'});
+  p('p_rachel','Rachel Ide',-2,{birth:'Dec 2, 1730',death:'Aug 15, 1808',place:'Rehoboth, MA \u2192 Pittsford, NY',note:'Married Jesse May 11, 1749. Textiles, midwifery, herbal medicine. Buried Pioneer Burying Ground'});
+  const jkids=[['p_lemuel','Lemuel Perrin',{birth:'1749',death:'1822',note:'Lieutenant, Revolutionary War'}],
+    ['p_daniel','Daniel Perrin',{}],['p_molly','Molly Perrin',{}],['p_jessejr','Jesse Perrin Jr.',{}],
+    ['p_danide','Daniel Ide Perrin',{}],['p_huldah','Huldah Perrin',{}],['p_glover','Glover Perrin',{}],
+    ['p_edward','Edward Perrin',{}],['p_ezra','Ezra Perrin',{}],['p_jacob','Jacob Perrin',{}],['p_asa','Asa Perrin',{}]];
+  jkids.forEach(k=>p(k[0],k[1],-1,k[2]));
+  u('u_jesse',['p_jesse','p_rachel'],['p_calvin',...jkids.map(k=>k[0])]);
+
+  p('p_samscrib','Samuel Scribner',-2,{birth:'1755',death:'1818',place:'New Hampshire',note:'Revolutionary soldier'});
+  p('p_abigail','Abigail Hill',-2,{birth:'1759',death:'1826',place:'New Hampshire',note:'Early American weaver'});
+  u('u_samscrib',['p_samscrib','p_abigail'],['p_samjr']);
+
+  p('p_calvin','Calvin Perrin',-1,{birth:'1766',death:'1850',note:'Yankee agriculturalist'});
+  p('p_lucy','Lucy Peake',-1,{birth:'1768',death:'1852',place:'Connecticut',note:'Frontier matriarch'});
+  u('u_calvin',['p_calvin','p_lucy'],['p_hyde']);
+
+  p('p_samjr','Samuel Scribner Jr.',-1,{note:'Northeastern woodsman'});
+  p('p_unk1','Spouse unknown',-1,{ghost:true,note:'Lineage not yet traced'});
+  u('u_samjr',['p_samjr','p_unk1'],['p_sylvia']);
+
+  p('p_hyde','Hyde Perrin',1,{birth:'1790',death:'1873',place:'NY \u2192 OH',note:'Huguenot / Yankee descent'});
+  p('p_sylvia','Sylvia Scribner',1,{birth:'1800',death:'?',place:'NY \u2192 OH',note:'Early colonial Scribners'});
+  u('u_hyde',['p_hyde','p_sylvia'],['p_orrin']);
+
+  p('p_orrin','Orrin Orlando Perrin',2,{birth:'1841',death:'1905',place:'Medina, OH',note:'Union soldier and farmer'});
+  p('p_virginia','Virginia Harris',2,{birth:'c. 1850',death:'?',place:'Ohio',note:'Matriarch'});
+  u('u_orrin',['p_orrin','p_virginia'],[]);
+
+  p('p_sam','Sam J. Hood',3,{birth:'c. 1900',death:'pre-2003',place:'GA/AL \u2192 Akron',note:'Southern migrant'});
+  p('p_shirley','Shirley Rebecca (Hood) Cox',3,{birth:'1928',death:'2013',place:'Akron, OH',note:'First woman to drive for Akron Yellow Cab'});
+  u('u_hood',['p_sam','p_shirley'],['p_yvonne','p_jackie','p_vickie','p_yolanda','p_donald','p_james']);
+
+  p('p_yvonne','Yvonne J. "Lady Day" Vickers',4,{birth:'1947',death:'2003',place:'Akron, OH',note:'Beloved matriarch'});
+  p('p_jackie','Jackie Favors',4);
+  p('p_vickie','Vickie Ward',4);
+  p('p_yolanda','Yolanda Walker',4);
+  p('p_donald','Donald',4);
+  p('p_james','James Jr.',4);
+  u('u_yvonne',['p_yvonne'],['p_maria']);
+
+  p('p_maria','Maria Janel Heard',5,{place:'Akron, OH',note:'Maternal line carrier'});
+  p('p_mrii','Michael Rodriguez II',5,{place:'Akron, OH',note:'Paternal lines: Rodriguez (Puerto Rico) and Addison'});
+  u('u_parents',['p_maria','p_mrii'],['p_you']);
+
+  p('p_mateo','Mateo Rodr\u00edguez',-1,{birth:'c. 1765',place:'Cordillera Central, PR',note:'J\u00edbaro rainforest clearer \u2014 corn and root crops. Unverified'});
+  p('p_juanadios','Juana de Dios',-1,{birth:'c. 1770',place:'Puerto Rico',note:'Island homemaker. Unverified'});
+  u('u_mateo',['p_mateo','p_juanadios'],['p_manuel']);
+
+  p('p_manuel','Manuel Rodr\u00edguez',0,{birth:'c. 1795',place:'Adjuntas / Utuado, PR',note:'Coffee and tobacco cultivator; hand-cranked tahona mills. Unverified'});
+  p('p_rosario','Mar\u00eda del Rosario',0,{place:'Interior mountains, PR',note:'Mountain artisan. Unverified'});
+  u('u_manuel',['p_manuel','p_rosario'],['p_jose']);
+
+  p('p_jose','Jos\u00e9 Rodr\u00edguez',1,{birth:'c. 1830',place:'Coastal plains, PR',note:'Sugar cane field manager, ox-cart logistics. Unverified'});
+  p('p_francisca','Francisca de As\u00eds',1,{place:'Puerto Rico',note:'Plantation laborer. Unverified'});
+  u('u_jose',['p_jose','p_francisca'],['p_carlos']);
+
+  p('p_carlos','Carlos Rodr\u00edguez',2,{birth:'c. 1870',place:'Utuado / Adjuntas, PR',note:'Independent coffee finquero. Unverified'});
+  p('p_juanacolon','Juana Col\u00f3n',2,{place:'Puerto Rico',note:'Lace-maker and weaver. Unverified'});
+  u('u_carlos',['p_carlos','p_juanacolon'],['p_luis']);
+
+  p('p_luis','Luis Rodr\u00edguez',3,{birth:'c. 1910',place:'San Juan, PR',note:'Port tradesman and cargo handler'});
+  p('p_carmela','Carmela Rivera',3,{place:'San Juan, PR',note:'Seamstress, coastal garment houses'});
+  u('u_luis',['p_luis','p_carmela'],['p_mikesr']);
+
+  p('p_ozell','Ozell Addison',3,{place:'Union Springs, AL \u2192 Akron',note:'Great Migration north'});
+  p('p_thelma','Thelma Addison',3,{place:'Union Springs, AL \u2192 Akron',note:'Great Migration north'});
+  u('u_addison',['p_ozell','p_thelma'],['p_brenda']);
+
+  p('p_mikesr','Michael Rodriguez Sr.',4,{birth:'c. 1945',place:'Puerto Rico \u2192 Akron, OH',note:'Heavy machine operator, Akron plastics foundries'});
+  p('p_brenda','Brenda J. (Addison) Rodriguez',4,{birth:'1952',death:'2023',place:'Akron, OH',note:'38 years as Director of Elderly Housing & Compliance, Alpha Phi Alpha Homes'});
+  u('u_grand',['p_mikesr','p_brenda'],['p_mrii']);
+
+  p('p_you','Michael Angelo Rodriguez III',6,{place:'Akron, OH',note:'That\u2019s you',self:true});
+}
+
+/* ============================ storage ============================ */
+async function save(){
+  try{ await window.storage.set(KEY,JSON.stringify(state)); }catch(e){ /* keeps working in memory */ }
+}
+async function load(){
+  try{
+    const r=await window.storage.get(KEY);
+    if(r&&r.value){ const d=JSON.parse(r.value); if(d&&d.people&&Object.keys(d.people).length){ state=d; return true; } }
+  }catch(e){}
+  return false;
+}
+
+/* ============================ layout ============================ */
+let blocks=[],pos={},rows=[],bbox={w:0,h:0};
+
+function gensList(){
+  const s=[...new Set(Object.values(state.people).map(p=>Number(p.gen)||0))];
+  return s.sort((a,b)=>a-b);
+}
+function ownW(u){ const n=u.partners.length; return n>1 ? n*CW+(n-1)*MG : CW; }
+
+function build(){
+  blocks=[];pos={};
+  rows=gensList();
+  const rowIdx=g=>Math.max(0,rows.indexOf(Number(g)||0));
+  const rowOfU=u=>Math.min(...u.partners.map(p=>rowIdx(P(p)?P(p).gen:0)));
+  const done=new Set();
+  let cursor=0;
+
+  function node(t,id){ return {t,id,kids:[]}; }
+  function measure(n){
+    if(n.t==='p'){ n.own=CW; n.w=CW; n.row=rowIdx(P(n.id).gen); return CW; }
+    const u=U(n.id); n.own=ownW(u); n.row=rowOfU(u);
+    for(const cid of u.children){
+      if(!P(cid)||done.has(cid)) continue;
+      const cu=unionOf(cid);
+      let kn;
+      if(cu&&!done.has(cu.id)){ done.add(cu.id); cu.partners.forEach(x=>done.add(x)); kn=node('u',cu.id); }
+      else { done.add(cid); kn=node('p',cid); }
+      n.kids.push(kn);
+    }
+    let cw=0; n.kids.forEach((k,i)=>{ cw+=measure(k)+(i?SIB:0); });
+    n.cw=cw; n.w=Math.max(n.own,cw);
+    return n.w;
+  }
+  function assign(n,left){
+    n.x=left+(n.w-n.own)/2;
+    place(n);
+    let s=left+(n.w-n.cw)/2;
+    n.kids.forEach(k=>{ assign(k,s); s+=k.w+SIB; });
+  }
+  function place(n){
+    const ids = n.t==='u' ? U(n.id).partners.slice() : [n.id];
+    blocks.push({kind:n.t,uid:n.t==='u'?n.id:null,ids,x:n.x,row:n.row,own:n.own});
+  }
+
+  // pick spine roots: unplaced union with the deepest descent
+  function descCount(uid,seen=new Set()){
+    if(seen.has(uid))return 0; seen.add(uid);
+    let c=1;
+    for(const cid of U(uid).children){ const cu=unionOf(cid); c+= cu?descCount(cu.id,seen):1; }
+    return c;
+  }
+  while(true){
+    const cand=state.unions.filter(u=>!done.has(u.id));
+    if(!cand.length) break;
+    cand.sort((a,b)=>descCount(b.id)-descCount(a.id));
+    const r=cand[0];
+    done.add(r.id); r.partners.forEach(x=>done.add(x));
+    const root=node('u',r.id);
+    const w=measure(root);
+    assign(root,cursor);
+    cursor+=w+GAP*2;
+    ancestors();
+  }
+  // people with no union at all
+  for(const p of Object.values(state.people)){
+    if(done.has(p.id))continue;
+    done.add(p.id);
+    blocks.push({kind:'p',uid:null,ids:[p.id],x:cursor,row:rowIdx(p.gen),own:CW});
+    cursor+=CW+GAP;
+    ancestors();
+  }
+
+  function centerOf(pid){
+    for(const b of blocks){ const i=b.ids.indexOf(pid); if(i>=0) return b.x+i*(CW+MG)+CW/2; }
+    return null;
+  }
+  function ancestors(){
+    let moved=true,guard=0;
+    while(moved&&guard++<60){
+      moved=false;
+      for(const b of [...blocks]){
+        for(const pid of b.ids){
+          const pu=parentUnion(pid);
+          if(!pu||done.has(pu.id))continue;
+          done.add(pu.id); pu.partners.forEach(x=>done.add(x));
+          const w=ownW(pu), cx=centerOf(pid);
+          blocks.push({kind:'u',uid:pu.id,ids:pu.partners.slice(),x:cx-w/2,row:rowOfU(pu),own:w});
+          moved=true;
+        }
+      }
+    }
+  }
+
+  // pull rows apart so nothing overlaps
+  const byRow={};
+  blocks.forEach(b=>{ (byRow[b.row]=byRow[b.row]||[]).push(b); });
+  Object.values(byRow).forEach(list=>{
+    list.sort((a,b)=>a.x-b.x);
+    for(let i=1;i<list.length;i++){
+      const prev=list[i-1], need=prev.x+prev.own+SIB;
+      if(list[i].x<need) list[i].x=need;
+    }
+  });
+
+  // normalise
+  let minX=Infinity,maxX=-Infinity;
+  blocks.forEach(b=>{ minX=Math.min(minX,b.x); maxX=Math.max(maxX,b.x+b.own); });
+  if(!isFinite(minX)){minX=0;maxX=CW;}
+  const dx=PAD-minX;
+  blocks.forEach(b=>{
+    b.x+=dx; b.y=b.row*ROWH+PAD;
+    b.ids.forEach((pid,i)=>{ pos[pid]={x:b.x+i*(CW+MG),y:b.y,b}; });
+  });
+  bbox={w:maxX-minX+PAD*2, h:(rows.length-1)*ROWH+CH+PAD*2};
+}
+
+/* ============================ render ============================ */
+const stage=document.getElementById('stage');
+const wires=document.getElementById('wires');
+const vp=document.getElementById('viewport');
+
+function esc(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function dateLine(p){
+  if(!p.birth&&!p.death) return '';
+  return (p.birth||'?')+' \u2013 '+(p.death||'?');
+}
+function genLabel(g){ return (g<0?'G'+g:'G'+g); }
+
+function render(){
+  build();
+  [...stage.querySelectorAll('.card,.rowlab')].forEach(n=>n.remove());
+  const paths=[];
+
+  rows.forEach((g,i)=>{
+    const d=document.createElement('div');
+    d.className='rowlab';
+    d.style.left='12px'; d.style.top=(i*ROWH+PAD-20)+'px';
+    d.innerHTML='<b>'+genLabel(g)+'</b>';
+    stage.appendChild(d);
+  });
+
+  // marriage bars
+  blocks.forEach(b=>{
+    if(b.kind!=='u')return;
+    for(let i=1;i<b.ids.length;i++){
+      const x1=b.x+(i-1)*(CW+MG)+CW, x2=b.x+i*(CW+MG), y=b.y+CH/2;
+      paths.push('<path d="M'+x1+' '+y+'H'+x2+'" stroke="var(--brass)" stroke-width="1.5" fill="none"/>');
+      paths.push('<rect x="'+((x1+x2)/2-3)+'" y="'+(y-3)+'" width="6" height="6" fill="var(--brass)"/>');
+    }
+  });
+
+  // descent lines
+  blocks.forEach(b=>{
+    if(b.kind!=='u')return;
+    const u=U(b.uid); if(!u)return;
+    const kids=u.children.filter(c=>pos[c]);
+    if(!kids.length)return;
+    const jx=b.x+b.own/2, jy=b.y+CH;
+    const bus=jy+Math.round((ROWH-CH)/2);
+    paths.push('<path d="M'+jx+' '+jy+'V'+bus+'" stroke="var(--rule)" stroke-width="1.5" fill="none"/>');
+    kids.forEach(cid=>{
+      const cp=pos[cid], cx=cp.x+CW/2;
+      paths.push('<path d="M'+jx+' '+bus+'H'+cx+'V'+cp.y+'" stroke="var(--rule)" stroke-width="1.5" fill="none"/>');
+      paths.push('<rect x="'+(cx-2.5)+'" y="'+(cp.y-2.5)+'" width="5" height="5" fill="var(--rule)"/>');
+    });
+  });
+
+  wires.setAttribute('width',bbox.w); wires.setAttribute('height',bbox.h);
+  wires.innerHTML=paths.join('');
+
+  Object.values(state.people).forEach(p=>{
+    const pp=pos[p.id]; if(!pp)return;
+    const el=document.createElement('div');
+    el.className='card'+(p.self?' self':'')+(p.ghost?' ghost':'')+(hits.has(p.id)?' hit':'')+(sel===p.id?' sel':'');
+    el.style.left=pp.x+'px'; el.style.top=pp.y+'px';
+    el.dataset.id=p.id;
+    el.innerHTML='<div class="tab">'+genLabel(p.gen)+'</div><div class="body">'+
+      '<div class="nm">'+esc(p.name||'Unnamed')+'</div>'+
+      (dateLine(p)?'<div class="dt">'+esc(dateLine(p))+'</div>':'')+
+      (p.place||p.note?'<div class="nt">'+esc([p.place,p.note].filter(Boolean).join(' \u00b7 '))+'</div>':'')+
+      '</div>';
+    stage.appendChild(el);
+  });
+
+  stage.style.width=bbox.w+'px'; stage.style.height=bbox.h+'px';
+  const n=Object.keys(state.people).length;
+  document.getElementById('stat').textContent=n+' people \u00b7 '+state.unions.length+' unions \u00b7 '+rows.length+' generations';
+}
+
+/* ============================ pan + zoom ============================ */
+function apply(){ stage.style.transform='translate('+view.x+'px,'+view.y+'px) scale('+view.k+')'; }
+function fit(){
+  const w=vp.clientWidth,h=vp.clientHeight-60;
+  view.k=Math.min(w/bbox.w,h/bbox.h,1.1);
+  view.x=(w-bbox.w*view.k)/2;
+  view.y=60+(h-bbox.h*view.k)/2;
+  apply();
+}
+function focusOn(pid){
+  const pp=pos[pid]; if(!pp)return;
+  view.k=Math.max(view.k,.8);
+  view.x=vp.clientWidth/2-(pp.x+CW/2)*view.k;
+  view.y=vp.clientHeight/2-(pp.y+CH/2)*view.k;
+  apply();
+}
+let ptrs=new Map(),last=null,pinch=null,moved=0;
+vp.addEventListener('pointerdown',e=>{
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  vp.setPointerCapture(e.pointerId); vp.classList.add('drag'); moved=0;
+  if(ptrs.size===2){ const a=[...ptrs.values()]; pinch={d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),k:view.k}; }
+  else last={x:e.clientX,y:e.clientY};
+});
+vp.addEventListener('pointermove',e=>{
+  if(!ptrs.has(e.pointerId))return;
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2&&pinch){
+    const a=[...ptrs.values()], d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);
+    const mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;
+    const k=Math.min(2.2,Math.max(.15,pinch.k*d/pinch.d));
+    view.x=mx-(mx-view.x)*(k/view.k); view.y=my-(my-view.y)*(k/view.k);
+    view.k=k; apply(); moved=99; return;
+  }
+  if(last){ const dx=e.clientX-last.x,dy=e.clientY-last.y;
+    moved+=Math.abs(dx)+Math.abs(dy); view.x+=dx; view.y+=dy;
+    last={x:e.clientX,y:e.clientY}; apply(); }
+});
+function up(e){ ptrs.delete(e.pointerId); if(ptrs.size<2)pinch=null; if(!ptrs.size){last=null;vp.classList.remove('drag');} }
+vp.addEventListener('pointerup',up); vp.addEventListener('pointercancel',up);
+vp.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const k=Math.min(2.2,Math.max(.15,view.k*(e.deltaY<0?1.12:.89)));
+  view.x=e.clientX-(e.clientX-view.x)*(k/view.k);
+  view.y=e.clientY-(e.clientY-view.y)*(k/view.k);
+  view.k=k; apply();
+},{passive:false});
+stage.addEventListener('click',e=>{
+  const c=e.target.closest('.card'); if(!c||moved>6)return;
+  openPerson(c.dataset.id);
+});
+function zoom(f){
+  const k=Math.min(2.2,Math.max(.15,view.k*f)), cx=vp.clientWidth/2, cy=vp.clientHeight/2;
+  view.x=cx-(cx-view.x)*(k/view.k); view.y=cy-(cy-view.y)*(k/view.k); view.k=k; apply();
+}
+
+/* ============================ sheet ============================ */
+const sheet=document.getElementById('sheet'),scrim=document.getElementById('scrim'),
+      sbody=document.getElementById('sheetBody');
+function openSheet(html){ sbody.innerHTML=html; scrim.style.display='block'; requestAnimationFrame(()=>sheet.classList.add('open')); }
+function closeSheet(){ sheet.classList.remove('open'); scrim.style.display='none'; sel=null; render(); }
+scrim.onclick=closeSheet;
+function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('on');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),1800); }
+
+function openPerson(id){
+  const p=P(id); if(!p)return;
+  sel=id; render();
+  const u=unionOf(id), pu=parentUnion(id);
+  const rel=[];
+  if(u&&u.partners.length>1) rel.push('married to '+u.partners.filter(x=>x!==id).map(x=>P(x).name).join(', '));
+  if(u&&u.children.length) rel.push(u.children.length+' child'+(u.children.length>1?'ren':''));
+  if(pu) rel.push('child of '+pu.partners.map(x=>P(x).name).join(' & '));
+  openSheet(`
+    <div class="eyebrow">Generation ${genLabel(p.gen)} record</div>
+    <h2>${esc(p.name||'Unnamed')}</h2>
+    <p class="hint">${esc(rel.join(' \u00b7 '))||'No relations recorded yet'}</p>
+    <label for="f_name">Name</label>
+    <input id="f_name" type="text" value="${esc(p.name)}">
+    <div class="two">
+      <div><label for="f_b">Born</label><input id="f_b" type="text" value="${esc(p.birth)}" placeholder="1928"></div>
+      <div><label for="f_d">Died</label><input id="f_d" type="text" value="${esc(p.death)}" placeholder="2013"></div>
+    </div>
+    <div class="two">
+      <div><label for="f_place">Place</label><input id="f_place" type="text" value="${esc(p.place)}" placeholder="Akron, OH"></div>
+      <div><label for="f_gen">Generation</label><input id="f_gen" type="text" value="${p.gen}"></div>
+    </div>
+    <label for="f_note">Notes</label>
+    <textarea id="f_note" placeholder="Work, service, migration, stories">${esc(p.note)}</textarea>
+    <div class="chk"><input type="checkbox" id="f_ghost" ${p.ghost?'checked':''}><label for="f_ghost" style="margin:0">Placeholder \u2014 identity unknown</label></div>
+    <div class="acts">
+      <button class="btn brass" id="a_save">Save changes</button>
+      <button class="btn" id="a_partner">Add spouse</button>
+      <button class="btn" id="a_child">Add child</button>
+      <button class="btn" id="a_parents">Add parents</button>
+      <button class="btn" id="a_link">Link existing child</button>
+      <button class="btn danger" id="a_del">Delete person</button>
+    </div>`);
+
+  document.getElementById('a_save').onclick=async()=>{
+    p.name=document.getElementById('f_name').value.trim()||'Unnamed';
+    p.birth=document.getElementById('f_b').value.trim();
+    p.death=document.getElementById('f_d').value.trim();
+    p.place=document.getElementById('f_place').value.trim();
+    p.note=document.getElementById('f_note').value.trim();
+    const g=parseInt(document.getElementById('f_gen').value,10); if(!isNaN(g))p.gen=g;
+    p.ghost=document.getElementById('f_ghost').checked;
+    await save(); closeSheet(); toast('Saved');
+  };
+  document.getElementById('a_partner').onclick=async()=>{
+    const id2=uid('p'); person(id2,'New spouse',p.gen);
+    let un=unionOf(id); if(un){ un.partners.push(id2); } else { union(uid('u'),[id,id2],[]); }
+    await save(); render(); openPerson(id2);
+  };
+  document.getElementById('a_child').onclick=async()=>{
+    const id2=uid('p'); person(id2,'New child',(Number(p.gen)||0)+1);
+    let un=unionOf(id); if(!un){ un={id:uid('u'),partners:[id],children:[]}; state.unions.push(un); }
+    un.children.push(id2);
+    await save(); render(); openPerson(id2);
+  };
+  document.getElementById('a_parents').onclick=async()=>{
+    if(parentUnion(id)){ toast('Parents already recorded'); return; }
+    const f=uid('p'),m=uid('p');
+    person(f,'Father unknown',(Number(p.gen)||0)-1,{ghost:true});
+    person(m,'Mother unknown',(Number(p.gen)||0)-1,{ghost:true});
+    union(uid('u'),[f,m],[id]);
+    await save(); render(); openPerson(f);
+  };
+  document.getElementById('a_link').onclick=()=>linkChild(id);
+  document.getElementById('a_del').onclick=async()=>{
+    if(!confirm('Delete '+p.name+' from the tree?'))return;
+    delete state.people[id];
+    state.unions.forEach(u=>{ u.partners=u.partners.filter(x=>x!==id); u.children=u.children.filter(x=>x!==id); });
+    state.unions=state.unions.filter(u=>u.partners.length||u.children.length);
+    await save(); closeSheet(); toast('Removed');
+  };
+}
+
+function linkChild(pid){
+  const p=P(pid);
+  const opts=Object.values(state.people)
+    .filter(x=>x.id!==pid&&!parentUnion(x.id))
+    .sort((a,b)=>(a.gen-b.gen)||a.name.localeCompare(b.name))
+    .map(x=>'<option value="'+x.id+'">'+esc(x.name)+' ('+genLabel(x.gen)+')</option>').join('');
+  openSheet(`
+    <div class="eyebrow">Connect a line</div>
+    <h2>Child of ${esc(p.name)}</h2>
+    <p class="hint">Only people with no parents on record are listed. This is how you join two branches \u2014 for example, once you know which of Orrin and Virginia's children leads into the Hood line.</p>
+    <label for="f_pick">Person</label>
+    <select id="f_pick">${opts||'<option value="">Nobody available</option>'}</select>
+    <div class="acts">
+      <button class="btn brass" id="a_go">Set as child</button>
+      <button class="btn" id="a_back">Back</button>
+    </div>`);
+  document.getElementById('a_back').onclick=()=>openPerson(pid);
+  document.getElementById('a_go').onclick=async()=>{
+    const cid=document.getElementById('f_pick').value; if(!cid)return;
+    let un=unionOf(pid); if(!un){ un={id:uid('u'),partners:[pid],children:[]}; state.unions.push(un); }
+    if(!un.children.includes(cid)) un.children.push(cid);
+    await save(); closeSheet(); toast('Line connected');
+  };
+}
+
+/* ============================ file menu ============================ */
+document.getElementById('bMenu').onclick=()=>{
+  openSheet(`
+    <div class="eyebrow">Records</div>
+    <h2>File</h2>
+    <p class="hint">Your tree saves automatically as you edit. Export a copy before big changes.</p>
+    <div class="acts">
+      <button class="btn brass" id="m_exp">Export JSON</button>
+      <button class="btn" id="m_imp">Import JSON</button>
+      <button class="btn" id="m_gaps">Show open gaps</button>
+      <button class="btn danger" id="m_reset">Reset to original</button>
+    </div>
+    <input type="file" id="m_file" accept="application/json" style="display:none">`);
+  document.getElementById('m_exp').onclick=()=>{
+    const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='onslow-akron-tree.json'; a.click();
+    toast('Exported');
+  };
+  document.getElementById('m_imp').onclick=()=>document.getElementById('m_file').click();
+  document.getElementById('m_file').onchange=e=>{
+    const f=e.target.files[0]; if(!f)return;
+    const r=new FileReader();
+    r.onload=async()=>{ try{ const d=JSON.parse(r.result);
+      if(d.people&&d.unions){ state=d; await save(); closeSheet(); toast('Imported'); }
+      else toast('That file is not a tree'); }catch(err){ toast('Could not read that file'); } };
+    r.readAsText(f);
+  };
+  document.getElementById('m_gaps').onclick=()=>{
+    const gaps=[];
+    Object.values(state.people).forEach(p=>{
+      if(p.ghost) gaps.push(p.name+' \u2014 identity unknown');
+      if(!parentUnion(p.id)&&Number(p.gen)>Math.min(...gensList())) gaps.push(p.name+' \u2014 no parents on record');
+    });
+    openSheet('<div class="eyebrow">Research queue</div><h2>Open gaps</h2><p class="hint">'+
+      (gaps.length?gaps.map(esc).join('<br>'):'Nothing outstanding')+'</p>'+
+      '<div class="acts"><button class="btn" onclick="location.reload()">Close</button></div>');
+  };
+  document.getElementById('m_reset').onclick=async()=>{
+    if(!confirm('Replace everything with the original seeded tree?'))return;
+    seed(); await save(); closeSheet(); fit(); toast('Reset');
+  };
+};
+
+document.getElementById('bAdd').onclick=async()=>{
+  const id=uid('p'); person(id,'New person',0);
+  await save(); render(); focusOn(id); openPerson(id);
+};
+document.getElementById('bFit').onclick=fit;
+document.getElementById('bIn').onclick=()=>zoom(1.25);
+document.getElementById('bOut').onclick=()=>zoom(.8);
+document.getElementById('q').oninput=e=>{
+  const t=e.target.value.trim().toLowerCase();
+  hits=new Set();
+  if(t.length>1){
+    Object.values(state.people).forEach(p=>{
+      if((p.name+' '+p.note+' '+p.place).toLowerCase().includes(t)) hits.add(p.id);
+    });
+  }
+  render();
+  if(hits.size===1) focusOn([...hits][0]);
+};
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&sheet.classList.contains('open'))closeSheet(); });
+
+/* ============================ boot ============================ */
+(async()=>{
+  const ok=await load();
+  if(!ok) { seed(); await save(); }
+  render(); fit();
+})();
+</script>
