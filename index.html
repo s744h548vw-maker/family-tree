@@ -18,7 +18,7 @@
     --oxblood:#9A4235;
     --rule:#3E5148;
     --card-w:196px;
-    --card-h:104px;
+    --card-h:148px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--bone);
@@ -61,11 +61,16 @@
     font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--brass);
     writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.08em}
   .card .body{padding:9px 11px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:3px}
+  .card .rel{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.1em;
+    color:var(--brass);text-transform:uppercase;line-height:1.2;
+    overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .card .nm{font-family:'Zilla Slab',serif;font-size:14.5px;font-weight:600;line-height:1.15;
     overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .card .dt{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--brass);letter-spacing:.03em}
   .card .nt{font-size:10.5px;line-height:1.25;color:var(--bone-dim);
     overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .card .eth{font-family:'JetBrains Mono',monospace;font-size:9px;color:#7f9385;letter-spacing:.04em;
+    line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .card.self{border-color:var(--brass);background:#1e2a1f;box-shadow:0 0 0 1px var(--brass)}
   .card.self .tab{background:var(--brass);color:#14201a}
   .card.ghost{border-style:dashed;background:transparent}
@@ -118,6 +123,7 @@
 
 <div id="bar">
   <div id="title">The Rodriguez&#8211;Perrin Tapestry<small id="stat">loading records</small></div>
+  <button class="btn brass" id="bDirect" title="Show only your direct ancestors/descendants">Direct Line</button>
   <button class="btn" id="bFit" title="Fit tree to screen">Fit</button>
   <button class="btn brass" id="bMenu" title="File actions">&#9776;</button>
 </div>
@@ -142,7 +148,7 @@
 <script>
 /* ============================ model ============================ */
 const KEY='onslow-akron-tree-v5';
-const CW=196, CH=104, MG=30, SIB=36, ROWH=196, GAP=40, PAD=90;
+const CW=196, CH=148, MG=30, SIB=36, ROWH=240, GAP=40, PAD=90;
 let state={people:{},unions:[],seq:1};
 let view={x:0,y:0,k:1};
 let sel=null, hits=new Set();
@@ -153,30 +159,87 @@ const U=id=>state.unions.find(u=>u.id===id);
 const unionOf=pid=>state.unions.find(u=>u.partners.includes(pid));
 const parentUnion=pid=>state.unions.find(u=>u.children.includes(pid));
 
-function person(id,name,gen,o={}){ state.people[id]={id,name,gen,birth:'',death:'',place:'',note:'',ghost:false,self:false,...o}; }
+function person(id,name,gen,o={}){ state.people[id]={id,name,gen,birth:'',death:'',place:'',note:'',ethnicity:'',ghost:false,self:false,...o}; }
 function union(id,partners,children){ state.unions.push({id,partners,children}); }
+
+/* ---- relationship-to-you calculator ---- */
+function selfId(){ const s=Object.values(state.people).find(p=>p.self); return s?s.id:null; }
+function ancestorsMap(id){
+  const map=new Map(); const q=[[id,0]];
+  while(q.length){ const [cur,d]=q.shift(); if(map.has(cur))continue; map.set(cur,d);
+    const pu=parentUnion(cur); if(pu) pu.partners.forEach(pid=>{ if(!map.has(pid)) q.push([pid,d+1]); });
+  }
+  return map;
+}
+function descendantsMap(id){
+  const map=new Map(); const q=[[id,0]];
+  while(q.length){ const [cur,d]=q.shift(); if(map.has(cur))continue; map.set(cur,d);
+    const u=unionOf(cur); if(u) u.children.forEach(cid=>{ if(!map.has(cid)) q.push([cid,d+1]); });
+  }
+  return map;
+}
+let directOnly=false;
+function directLineSet(){
+  if(!directOnly) return null;
+  const you=selfId(); if(!you) return null;
+  const anc=ancestorsMap(you), desc=descendantsMap(you);
+  return new Set([...anc.keys(),...desc.keys()]);
+}
+function ordinalUp(d,word){ if(d===1)return word==='child'?'Parent':'Parent';
+  if(d===2)return 'Grandparent'; return 'Great-'.repeat(d-2)+'Grandparent'; }
+function ordinalDown(d){ if(d===1)return 'Child'; if(d===2)return 'Grandchild'; return 'Great-'.repeat(d-2)+'Grandchild'; }
+function lateralLabel(a,b){
+  // a = your distance to shared ancestor, b = target's distance to shared ancestor
+  if(a===1&&b===1) return 'Sibling';
+  if(a===1&&b>1){ const diff=b-1;
+    if(diff===1) return 'Niece / Nephew';
+    return 'Grand-'.repeat(1)+ (diff>2?'Great-'.repeat(diff-2):'') + 'Niece / Nephew';
+  }
+  if(b===1&&a>1){ const diff=a-1;
+    if(diff===1) return 'Aunt / Uncle';
+    return 'Grand-'.repeat(1)+ (diff>2?'Great-'.repeat(diff-2):'') + 'Aunt / Uncle';
+  }
+  const degree=Math.min(a,b)-1, removed=Math.abs(a-b);
+  const ord=degree===1?'1st':degree===2?'2nd':degree===3?'3rd':degree+'th';
+  return ord+' Cousin'+(removed?', '+removed+'x Removed':'');
+}
+function relationLabel(targetId){
+  const you=selfId(); if(!you) return '';
+  if(targetId===you) return 'You';
+  const mine=ancestorsMap(you), theirs=ancestorsMap(targetId);
+  if(mine.has(targetId)) return ordinalUp(mine.get(targetId));
+  if(theirs.has(you)) return ordinalDown(theirs.get(you));
+  let best=null;
+  for(const [anc,a] of mine){ if(theirs.has(anc)){ const b=theirs.get(anc);
+    if(!best||(a+b)<(best.a+best.b)) best={a,b}; } }
+  if(best) return lateralLabel(best.a,best.b);
+  const un=unionOf(targetId);
+  if(un){ const spouseId=un.partners.find(x=>x!==targetId);
+    if(spouseId){ const r=relationLabel(spouseId); if(r) return 'Spouse of '+r; } }
+  return '';
+}
 
 function seed(){
   state={people:{},unions:[],seq:1000};
   const p=person, u=union;
-  p('p_john3','John Perrin III',-4,{birth:'1643',death:'1694',place:'Rehoboth, Plymouth Colony',note:'Frontier joiner and militiaman; served in King Philip\u2019s War'});
-  p('p_mary','Mary Hunt',-4,{birth:'1652',death:'1690',place:'Weymouth, Mass. Bay',note:'Ran the homestead. Conflict: died 1690, two years before John IV\u2019s stated birth \u2014 a generation may be missing here'});
+  p('p_john3','John Perrin III',-4,{ethnicity:'White — French Huguenot / Anglo-Saxon',birth:'1643',death:'1694',place:'Rehoboth, Plymouth Colony',note:'Frontier joiner and militiaman; served in King Philip\u2019s War'});
+  p('p_mary','Mary Hunt',-4,{ethnicity:'White — English Puritan',birth:'1652',death:'1690',place:'Weymouth, Mass. Bay',note:'Ran the homestead. Conflict: died 1690, two years before John IV\u2019s stated birth \u2014 a generation may be missing here'});
   u('u_john3',['p_john3','p_mary'],['p_john4']);
 
-  p('p_john4','John Perrin IV',-3,{birth:'Mar 8, 1692',death:'Feb 28, 1731',place:'Rehoboth, Bristol Co., MA',note:'Yeoman, timber millwright, livestock. Died at 38. Conflict: an earlier record gives 1668\u20131714'});
-  p('p_rachel_e','Rachel Ide (the Elder)',-3,{birth:'May 28, 1696',death:'Dec 26, 1780',place:'Rehoboth, MA',note:'Daughter of Capt. Timothy Ide & Elizabeth Cooper. Widowed 1731, held the estate together 49 years'});
+  p('p_john4','John Perrin IV',-3,{ethnicity:'White — Colonial Yankee',birth:'Mar 8, 1692',death:'Feb 28, 1731',place:'Rehoboth, Bristol Co., MA',note:'Yeoman, timber millwright, livestock. Died at 38. Conflict: an earlier record gives 1668\u20131714'});
+  p('p_rachel_e','Rachel Ide (the Elder)',-3,{ethnicity:'White — English Puritan',birth:'May 28, 1696',death:'Dec 26, 1780',place:'Rehoboth, MA',note:'Daughter of Capt. Timothy Ide & Elizabeth Cooper. Widowed 1731, held the estate together 49 years'});
   u('u_john4',['p_john4','p_rachel_e'],['p_jesse']);
 
-  p('p_timide','Capt. Timothy Ide',-4,{place:'Rehoboth, MA',note:'Ide bedrock family; King Philip\u2019s War generation'});
-  p('p_ecooper','Elizabeth Cooper',-4,{place:'Rehoboth, MA'});
+  p('p_timide','Capt. Timothy Ide',-4,{ethnicity:'White — English Puritan',place:'Rehoboth, MA',note:'Ide bedrock family; King Philip\u2019s War generation'});
+  p('p_ecooper','Elizabeth Cooper',-4,{ethnicity:'White — English Puritan',place:'Rehoboth, MA'});
   u('u_timide',['p_timide','p_ecooper'],['p_rachel_e']);
 
-  p('p_dide','Daniel Ide',-3,{place:'Rehoboth, MA',note:'Ide pioneer family'});
-  p('p_hcarp','Hannah Carpenter',-3,{place:'Rehoboth, MA',note:'Carpenter line'});
+  p('p_dide','Daniel Ide',-3,{ethnicity:'White — English Colonial',place:'Rehoboth, MA',note:'Ide pioneer family'});
+  p('p_hcarp','Hannah Carpenter',-3,{ethnicity:'White — English Colonial',place:'Rehoboth, MA',note:'Carpenter line'});
   u('u_ide',['p_dide','p_hcarp'],['p_rachel']);
 
-  p('p_jesse','Jesse Perrin',-2,{birth:'Jan 24, 1726',death:'Jan 15, 1801',place:'Rehoboth \u2192 Savoy, MA',note:'Town clerk of Rehoboth 25 years (1762\u20131787); surveyor. Registered for service 1778'});
-  p('p_rachel','Rachel Ide',-2,{birth:'Dec 2, 1730',death:'Aug 15, 1808',place:'Rehoboth, MA \u2192 Pittsford, NY',note:'Married Jesse May 11, 1749. Textiles, midwifery, herbal medicine. Buried Pioneer Burying Ground'});
+  p('p_jesse','Jesse Perrin',-2,{ethnicity:'White — French Huguenot / English',birth:'Jan 24, 1726',death:'Jan 15, 1801',place:'Rehoboth \u2192 Savoy, MA',note:'Town clerk of Rehoboth 25 years (1762\u20131787); surveyor. Registered for service 1778'});
+  p('p_rachel','Rachel Ide',-2,{ethnicity:'White — English Colonial',birth:'Dec 2, 1730',death:'Aug 15, 1808',place:'Rehoboth, MA \u2192 Pittsford, NY',note:'Married Jesse May 11, 1749. Textiles, midwifery, herbal medicine. Buried Pioneer Burying Ground'});
   const jkids=[['p_lemuel','Lemuel Perrin',{birth:'1749',death:'1822',note:'Lieutenant, Revolutionary War'}],
     ['p_daniel','Daniel Perrin',{}],['p_molly','Molly Perrin',{}],['p_jessejr','Jesse Perrin Jr.',{}],
     ['p_danide','Daniel Ide Perrin',{}],['p_huldah','Huldah Perrin',{}],['p_glover','Glover Perrin',{}],
@@ -184,72 +247,72 @@ function seed(){
   jkids.forEach(k=>p(k[0],k[1],-1,k[2]));
   u('u_jesse',['p_jesse','p_rachel'],['p_calvin',...jkids.map(k=>k[0])]);
 
-  p('p_samscrib','Samuel Scribner',-2,{birth:'1755',death:'1818',place:'New Hampshire',note:'Revolutionary soldier'});
-  p('p_abigail','Abigail Hill',-2,{birth:'1759',death:'1826',place:'New Hampshire',note:'Early American weaver'});
+  p('p_samscrib','Samuel Scribner',-2,{ethnicity:'White — English Colonial',birth:'1755',death:'1818',place:'New Hampshire',note:'Revolutionary soldier'});
+  p('p_abigail','Abigail Hill',-2,{ethnicity:'White — Anglo-Saxon',birth:'1759',death:'1826',place:'New Hampshire',note:'Early American weaver'});
   u('u_samscrib',['p_samscrib','p_abigail'],['p_samjr']);
 
-  p('p_calvin','Calvin Perrin',-1,{birth:'1766',death:'1850',note:'Yankee agriculturalist'});
-  p('p_lucy','Lucy Peake',-1,{birth:'1768',death:'1852',place:'Connecticut',note:'Frontier matriarch'});
+  p('p_calvin','Calvin Perrin',-1,{ethnicity:'White — French-Yankee',birth:'1766',death:'1850',note:'Yankee agriculturalist'});
+  p('p_lucy','Lucy Peake',-1,{ethnicity:'White — English Colonial',birth:'1768',death:'1852',place:'Connecticut',note:'Frontier matriarch'});
   u('u_calvin',['p_calvin','p_lucy'],['p_hyde']);
 
-  p('p_samjr','Samuel Scribner Jr.',-1,{note:'Northeastern woodsman'});
+  p('p_samjr','Samuel Scribner Jr.',-1,{ethnicity:'White — English-American',note:'Northeastern woodsman'});
   p('p_unk1','Spouse unknown',-1,{ghost:true,note:'Lineage not yet traced'});
   u('u_samjr',['p_samjr','p_unk1'],['p_sylvia']);
 
-  p('p_hyde','Hyde Perrin',1,{birth:'1790',death:'1873',place:'NY \u2192 OH',note:'Huguenot / Yankee descent'});
-  p('p_sylvia','Sylvia Scribner',1,{birth:'1800',death:'?',place:'NY \u2192 OH',note:'Early colonial Scribners'});
+  p('p_hyde','Hyde Perrin',1,{ethnicity:'White — French Huguenot / Yankee',birth:'1790',death:'1873',place:'NY \u2192 OH',note:'Huguenot / Yankee descent'});
+  p('p_sylvia','Sylvia Scribner',1,{ethnicity:'White — English Puritan',birth:'1800',death:'?',place:'NY \u2192 OH',note:'Early colonial Scribners'});
   u('u_hyde',['p_hyde','p_sylvia'],['p_orrin']);
 
-  p('p_orrin','Orrin Orlando Perrin',2,{birth:'1841',death:'1905',place:'Medina, OH',note:'Union soldier and farmer'});
-  p('p_virginia','Virginia Harris',2,{birth:'c. 1850',death:'?',place:'Ohio',note:'Matriarch'});
+  p('p_orrin','Orrin Orlando Perrin',2,{ethnicity:'White — French-Yankee',birth:'1841',death:'1905',place:'Medina, OH',note:'Union soldier and farmer'});
+  p('p_virginia','Virginia Harris',2,{ethnicity:'Black / African American — West African coastal',birth:'c. 1850',death:'?',place:'Ohio',note:'Matriarch'});
   u('u_orrin',['p_orrin','p_virginia'],[]);
 
-  p('p_sam','Sam J. Hood',3,{birth:'c. 1900',death:'pre-2003',place:'GA/AL \u2192 Akron',note:'Southern migrant'});
-  p('p_shirley','Shirley Rebecca (Hood) Cox',3,{birth:'1928',death:'2013',place:'Akron, OH',note:'First woman to drive for Akron Yellow Cab'});
+  p('p_sam','Sam J. Hood',3,{ethnicity:'Black / African American — West African',birth:'c. 1900',death:'pre-2003',place:'GA/AL \u2192 Akron',note:'Southern migrant'});
+  p('p_shirley','Shirley Rebecca (Hood) Cox',3,{ethnicity:'Multi-Racial African American',birth:'1928',death:'2013',place:'Akron, OH',note:'First woman to drive for Akron Yellow Cab'});
   u('u_hood',['p_sam','p_shirley'],['p_yvonne','p_jackie','p_vickie','p_yolanda','p_donald','p_james']);
 
-  p('p_yvonne','Yvonne J. "Lady Day" Vickers',4,{birth:'1947',death:'2003',place:'Akron, OH',note:'Beloved matriarch'});
+  p('p_yvonne','Yvonne J. "Lady Day" Vickers',4,{ethnicity:'Black / African American',birth:'1947',death:'2003',place:'Akron, OH',note:'Beloved matriarch'});
   p('p_jackie','Jackie Favors',4);
   p('p_vickie','Vickie Ward',4);
   p('p_yolanda','Yolanda Walker',4);
   p('p_donald','Donald',4);
   p('p_james','James Jr.',4);
-  p('p_heard','Mr. Heard',4,{place:'Akron, OH (Southern Migration roots)',note:'Heavy industrial trade worker; high-heat mold environments in Summit County manufacturing. First name not yet known'});
+  p('p_heard','Mr. Heard',4,{ethnicity:'Black / African American',place:'Akron, OH (Southern Migration roots)',note:'Heavy industrial trade worker; high-heat mold environments in Summit County manufacturing. First name not yet known'});
   u('u_yvonne',['p_yvonne','p_heard'],['p_maria']);
 
-  p('p_maria','Maria Janel Heard',5,{place:'Akron, OH',note:'Maternal line carrier'});
-  p('p_mrii','Michael Rodriguez II',5,{place:'Akron, OH',note:'Paternal lines: Rodriguez (Puerto Rico) and Addison'});
+  p('p_maria','Maria Janel Heard',5,{ethnicity:'Black / African American',place:'Akron, OH',note:'Maternal line carrier'});
+  p('p_mrii','Michael Rodriguez II',5,{ethnicity:'Multi-Racial African American & Afro-Latino',place:'Akron, OH',note:'Paternal lines: Rodriguez (Puerto Rico) and Addison'});
   u('u_parents',['p_maria','p_mrii'],['p_you']);
 
-  p('p_mateo','Mateo Rodr\u00edguez',-1,{birth:'c. 1765',place:'Cordillera Central, PR',note:'J\u00edbaro rainforest clearer \u2014 corn and root crops. Unverified'});
-  p('p_juanadios','Juana de Dios',-1,{birth:'c. 1770',place:'Puerto Rico',note:'Island homemaker. Unverified'});
+  p('p_mateo','Mateo Rodr\u00edguez',-1,{ethnicity:'Mestizo / Mulato — Spanish & West African',birth:'c. 1765',place:'Cordillera Central, PR',note:'J\u00edbaro rainforest clearer \u2014 corn and root crops. Unverified'});
+  p('p_juanadios','Juana de Dios',-1,{ethnicity:'Afro-Caribbean & Indigenous Taíno',birth:'c. 1770',place:'Puerto Rico',note:'Island homemaker. Unverified'});
   u('u_mateo',['p_mateo','p_juanadios'],['p_manuel']);
 
-  p('p_manuel','Manuel Rodr\u00edguez',0,{birth:'c. 1795',place:'Adjuntas / Utuado, PR',note:'Coffee and tobacco cultivator; hand-cranked tahona mills. Unverified'});
-  p('p_rosario','Mar\u00eda del Rosario',0,{place:'Interior mountains, PR',note:'Mountain artisan. Unverified'});
+  p('p_manuel','Manuel Rodr\u00edguez',0,{ethnicity:'Triracial Puerto Rican — Spanish, African, Taíno',birth:'c. 1795',place:'Adjuntas / Utuado, PR',note:'Coffee and tobacco cultivator; hand-cranked tahona mills. Unverified'});
+  p('p_rosario','Mar\u00eda del Rosario',0,{ethnicity:'Triracial Puerto Rican',place:'Interior mountains, PR',note:'Mountain artisan. Unverified'});
   u('u_manuel',['p_manuel','p_rosario'],['p_jose']);
 
-  p('p_jose','Jos\u00e9 Rodr\u00edguez',1,{birth:'c. 1830',place:'Coastal plains, PR',note:'Sugar cane field manager, ox-cart logistics. Unverified'});
-  p('p_francisca','Francisca de As\u00eds',1,{place:'Puerto Rico',note:'Plantation laborer. Unverified'});
+  p('p_jose','Jos\u00e9 Rodr\u00edguez',1,{ethnicity:'Afro-Caribbean / Latino',birth:'c. 1830',place:'Coastal plains, PR',note:'Sugar cane field manager, ox-cart logistics. Unverified'});
+  p('p_francisca','Francisca de As\u00eds',1,{ethnicity:'Afro-Caribbean / Latino',place:'Puerto Rico',note:'Plantation laborer. Unverified'});
   u('u_jose',['p_jose','p_francisca'],['p_carlos']);
 
-  p('p_carlos','Carlos Rodr\u00edguez',2,{birth:'c. 1870',place:'Utuado / Adjuntas, PR',note:'Independent coffee finquero. Unverified'});
-  p('p_juanacolon','Juana Col\u00f3n',2,{place:'Puerto Rico',note:'Lace-maker and weaver. Unverified'});
+  p('p_carlos','Carlos Rodr\u00edguez',2,{ethnicity:'Afro-Caribbean / Latino',birth:'c. 1870',place:'Utuado / Adjuntas, PR',note:'Independent coffee finquero. Unverified'});
+  p('p_juanacolon','Juana Col\u00f3n',2,{ethnicity:'Afro-Caribbean / Latino',place:'Puerto Rico',note:'Lace-maker and weaver. Unverified'});
   u('u_carlos',['p_carlos','p_juanacolon'],['p_luis']);
 
-  p('p_luis','Luis Rodr\u00edguez',3,{birth:'c. 1910',place:'San Juan, PR',note:'Port tradesman and cargo handler'});
-  p('p_carmela','Carmela Rivera',3,{place:'San Juan, PR',note:'Seamstress, coastal garment houses'});
+  p('p_luis','Luis Rodr\u00edguez',3,{ethnicity:'Triracial Puerto Rican',birth:'c. 1910',place:'San Juan, PR',note:'Port tradesman and cargo handler'});
+  p('p_carmela','Carmela Rivera',3,{ethnicity:'Triracial Puerto Rican',place:'San Juan, PR',note:'Seamstress, coastal garment houses'});
   u('u_luis',['p_luis','p_carmela'],['p_mikesr']);
 
-  p('p_ozell','Ozell Addison',3,{place:'Union Springs, AL \u2192 Akron',note:'Great Migration north'});
-  p('p_thelma','Thelma Louise (Owens) Addison',3,{birth:'1927',death:'2003',place:'Union Springs, Bullock Co., AL \u2192 Akron',note:'Great Migration north; preserved Alabama culinary and spiritual heritage in Akron'});
+  p('p_ozell','Ozell Addison',3,{ethnicity:'Black / African American',place:'Union Springs, AL \u2192 Akron',note:'Great Migration north'});
+  p('p_thelma','Thelma Louise (Owens) Addison',3,{ethnicity:'Black / African American',birth:'1927',death:'2003',place:'Union Springs, Bullock Co., AL \u2192 Akron',note:'Great Migration north; preserved Alabama culinary and spiritual heritage in Akron'});
   u('u_addison',['p_ozell','p_thelma'],['p_brenda']);
 
-  p('p_mikesr','Michael Rodriguez Sr.',4,{birth:'c. 1945',place:'Puerto Rico \u2192 Akron, OH',note:'Heavy machine operator, Akron plastics foundries'});
-  p('p_brenda','Brenda J. (Addison) Rodriguez',4,{birth:'1952',death:'2023',place:'Akron, OH',note:'38 years as Director of Elderly Housing & Compliance, Alpha Phi Alpha Homes'});
+  p('p_mikesr','Michael Rodriguez Sr.',4,{ethnicity:'Latino / Afro-Caribbean',birth:'c. 1945',place:'Puerto Rico \u2192 Akron, OH',note:'Heavy machine operator, Akron plastics foundries'});
+  p('p_brenda','Brenda J. (Addison) Rodriguez',4,{ethnicity:'Black / African American',birth:'1952',death:'2023',place:'Akron, OH',note:'38 years as Director of Elderly Housing & Compliance, Alpha Phi Alpha Homes'});
   u('u_grand',['p_mikesr','p_brenda'],['p_mrii']);
 
-  p('p_you','Michael Angelo Rodriguez III',6,{place:'Akron, OH',note:'That\u2019s you',self:true});
+  p('p_you','Michael Angelo Rodriguez III',6,{ethnicity:'Multi-Ethnic — African, European, Latino',place:'Akron, OH',note:'That\u2019s you',self:true});
 }
 
 /* ============================ storage ============================ */
@@ -267,15 +330,17 @@ async function load(){
 /* ============================ layout ============================ */
 let blocks=[],pos={},rows=[],bbox={w:0,h:0};
 
-function gensList(){
-  const s=[...new Set(Object.values(state.people).map(p=>Number(p.gen)||0))];
+function gensList(allowed){
+  const ppl=Object.values(state.people).filter(p=>!allowed||allowed.has(p.id));
+  const s=[...new Set(ppl.map(p=>Number(p.gen)||0))];
   return s.sort((a,b)=>a-b);
 }
 function ownW(u){ const n=u.partners.length; return n>1 ? n*CW+(n-1)*MG : CW; }
 
 function build(){
   blocks=[];pos={};
-  rows=gensList();
+  const allowed=directLineSet();
+  rows=gensList(allowed);
   const rowIdx=g=>Math.max(0,rows.indexOf(Number(g)||0));
   const rowOfU=u=>Math.min(...u.partners.map(p=>rowIdx(P(p)?P(p).gen:0)));
   const done=new Set();
@@ -287,6 +352,7 @@ function build(){
     const u=U(n.id); n.own=ownW(u); n.row=rowOfU(u);
     for(const cid of u.children){
       if(!P(cid)||done.has(cid)) continue;
+      if(allowed&&!allowed.has(cid)) continue;
       const cu=unionOf(cid);
       let kn;
       if(cu&&!done.has(cu.id)){ done.add(cu.id); cu.partners.forEach(x=>done.add(x)); kn=node('u',cu.id); }
@@ -316,7 +382,7 @@ function build(){
     return c;
   }
   while(true){
-    const cand=state.unions.filter(u=>!done.has(u.id));
+    const cand=state.unions.filter(u=>!done.has(u.id) && (!allowed||u.partners.some(x=>allowed.has(x))));
     if(!cand.length) break;
     cand.sort((a,b)=>descCount(b.id)-descCount(a.id));
     const r=cand[0];
@@ -330,6 +396,7 @@ function build(){
   // people with no union at all
   for(const p of Object.values(state.people)){
     if(done.has(p.id))continue;
+    if(allowed&&!allowed.has(p.id))continue;
     done.add(p.id);
     blocks.push({kind:'p',uid:null,ids:[p.id],x:cursor,row:rowIdx(p.gen),own:CW});
     cursor+=CW+GAP;
@@ -390,7 +457,14 @@ function dateLine(p){
   if(!p.birth&&!p.death) return '';
   return (p.birth||'?')+' \u2013 '+(p.death||'?');
 }
-function genLabel(g){ return (g<0?'G'+g:'G'+g); }
+function genLabel(g){ return 'G'+g; }
+function rowHint(g){
+  const you=selfId(); if(!you) return '';
+  const yourGen=P(you).gen;
+  if(g===yourGen) return 'YOUR GENERATION';
+  const d=Math.abs(g-yourGen);
+  return g<yourGen? d+' BACK':d+' FORWARD';
+}
 
 function render(){
   build();
@@ -401,7 +475,7 @@ function render(){
     const d=document.createElement('div');
     d.className='rowlab';
     d.style.left='12px'; d.style.top=(i*ROWH+PAD-20)+'px';
-    d.innerHTML='<b>'+genLabel(g)+'</b>';
+    d.innerHTML='<b>'+genLabel(g)+'</b> '+esc(rowHint(g));
     stage.appendChild(d);
   });
 
@@ -440,10 +514,13 @@ function render(){
     el.className='card'+(p.self?' self':'')+(p.ghost?' ghost':'')+(hits.has(p.id)?' hit':'')+(sel===p.id?' sel':'');
     el.style.left=pp.x+'px'; el.style.top=pp.y+'px';
     el.dataset.id=p.id;
+    const rel=p.self?'':relationLabel(p.id);
     el.innerHTML='<div class="tab">'+genLabel(p.gen)+'</div><div class="body">'+
+      (rel?'<div class="rel">'+esc(rel)+'</div>':'')+
       '<div class="nm">'+esc(p.name||'Unnamed')+'</div>'+
       (dateLine(p)?'<div class="dt">'+esc(dateLine(p))+'</div>':'')+
       (p.place||p.note?'<div class="nt">'+esc([p.place,p.note].filter(Boolean).join(' \u00b7 '))+'</div>':'')+
+      (p.ethnicity?'<div class="eth">'+esc(p.ethnicity)+'</div>':'')+
       '</div>';
     stage.appendChild(el);
   });
@@ -525,8 +602,9 @@ function openPerson(id){
   if(u&&u.partners.length>1) rel.push('married to '+u.partners.filter(x=>x!==id).map(x=>P(x).name).join(', '));
   if(u&&u.children.length) rel.push(u.children.length+' child'+(u.children.length>1?'ren':''));
   if(pu) rel.push('child of '+pu.partners.map(x=>P(x).name).join(' & '));
+  const relTag=p.self?'This is you':relationLabel(id);
   openSheet(`
-    <div class="eyebrow">Generation ${genLabel(p.gen)} record</div>
+    <div class="eyebrow">${esc(relTag||'Generation '+genLabel(p.gen))}</div>
     <h2>${esc(p.name||'Unnamed')}</h2>
     <p class="hint">${esc(rel.join(' \u00b7 '))||'No relations recorded yet'}</p>
     <label for="f_name">Name</label>
@@ -539,6 +617,8 @@ function openPerson(id){
       <div><label for="f_place">Place</label><input id="f_place" type="text" value="${esc(p.place)}" placeholder="Akron, OH"></div>
       <div><label for="f_gen">Generation</label><input id="f_gen" type="text" value="${p.gen}"></div>
     </div>
+    <label for="f_eth">Ethnicity / origin</label>
+    <input id="f_eth" type="text" value="${esc(p.ethnicity)}" placeholder="e.g. Afro-Caribbean, Puerto Rico">
     <label for="f_note">Notes</label>
     <textarea id="f_note" placeholder="Work, service, migration, stories">${esc(p.note)}</textarea>
     <div class="chk"><input type="checkbox" id="f_ghost" ${p.ghost?'checked':''}><label for="f_ghost" style="margin:0">Placeholder \u2014 identity unknown</label></div>
@@ -556,6 +636,7 @@ function openPerson(id){
     p.birth=document.getElementById('f_b').value.trim();
     p.death=document.getElementById('f_d').value.trim();
     p.place=document.getElementById('f_place').value.trim();
+    p.ethnicity=document.getElementById('f_eth').value.trim();
     p.note=document.getElementById('f_note').value.trim();
     const g=parseInt(document.getElementById('f_gen').value,10); if(!isNaN(g))p.gen=g;
     p.ghost=document.getElementById('f_ghost').checked;
@@ -662,6 +743,13 @@ document.getElementById('bMenu').onclick=()=>{
 document.getElementById('bAdd').onclick=async()=>{
   const id=uid('p'); person(id,'New person',0);
   await save(); render(); focusOn(id); openPerson(id);
+};
+document.getElementById('bDirect').onclick=e=>{
+  directOnly=!directOnly;
+  e.target.textContent=directOnly?'Full Tree':'Direct Line';
+  e.target.classList.toggle('brass',true);
+  render(); fit();
+  toast(directOnly?'Showing your direct line only':'Showing everyone');
 };
 document.getElementById('bFit').onclick=fit;
 document.getElementById('bIn').onclick=()=>zoom(1.25);
