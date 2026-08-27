@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Rodriguez&#8211;Perrin Tapestry</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -108,6 +113,8 @@
   #toast.on{opacity:1}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+</head>
+<body>
 
 <div id="bar">
   <div id="title">The Rodriguez&#8211;Perrin Tapestry<small id="stat">loading records</small></div>
@@ -207,7 +214,8 @@ function seed(){
   p('p_yolanda','Yolanda Walker',4);
   p('p_donald','Donald',4);
   p('p_james','James Jr.',4);
-  u('u_yvonne',['p_yvonne'],['p_maria']);
+  p('p_heard','Mr. Heard',4,{place:'Akron, OH (Southern Migration roots)',note:'Heavy industrial trade worker; high-heat mold environments in Summit County manufacturing. First name not yet known'});
+  u('u_yvonne',['p_yvonne','p_heard'],['p_maria']);
 
   p('p_maria','Maria Janel Heard',5,{place:'Akron, OH',note:'Maternal line carrier'});
   p('p_mrii','Michael Rodriguez II',5,{place:'Akron, OH',note:'Paternal lines: Rodriguez (Puerto Rico) and Addison'});
@@ -234,7 +242,7 @@ function seed(){
   u('u_luis',['p_luis','p_carmela'],['p_mikesr']);
 
   p('p_ozell','Ozell Addison',3,{place:'Union Springs, AL \u2192 Akron',note:'Great Migration north'});
-  p('p_thelma','Thelma Addison',3,{place:'Union Springs, AL \u2192 Akron',note:'Great Migration north'});
+  p('p_thelma','Thelma Louise (Owens) Addison',3,{birth:'1927',death:'2003',place:'Union Springs, Bullock Co., AL \u2192 Akron',note:'Great Migration north; preserved Alabama culinary and spiritual heritage in Akron'});
   u('u_addison',['p_ozell','p_thelma'],['p_brenda']);
 
   p('p_mikesr','Michael Rodriguez Sr.',4,{birth:'c. 1945',place:'Puerto Rico \u2192 Akron, OH',note:'Heavy machine operator, Akron plastics foundries'});
@@ -246,12 +254,12 @@ function seed(){
 
 /* ============================ storage ============================ */
 async function save(){
-  try{ await window.storage.set(KEY,JSON.stringify(state)); }catch(e){ /* keeps working in memory */ }
+  try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){ /* keeps working in memory */ }
 }
 async function load(){
   try{
-    const r=await window.storage.get(KEY);
-    if(r&&r.value){ const d=JSON.parse(r.value); if(d&&d.people&&Object.keys(d.people).length){ state=d; return true; } }
+    const raw=localStorage.getItem(KEY);
+    if(raw){ const d=JSON.parse(raw); if(d&&d.people&&Object.keys(d.people).length){ state=d; return true; } }
   }catch(e){}
   return false;
 }
@@ -678,3 +686,5 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&sheet.classList.co
   render(); fit();
 })();
 </script>
+</body>
+</html>
